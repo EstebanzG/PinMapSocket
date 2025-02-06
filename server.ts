@@ -15,7 +15,6 @@ wss.on('connection', function connection(ws) {
 
   ws.on('message', function message(data) {
     const message: Message = JSON.parse(data.toString());
-    console.log(message);
     switch (message.type) {
       case "addPin":
         addPin(message);
@@ -48,9 +47,35 @@ const addPin = (message: Message)=> {
   if (!message.pin) {
     return;
   }
-  const pin: Pin = message.pin;
+  let pin: Pin = {
+    ...message.pin,
+    validatedBy: [message.senderId],
+  }
+
+  pin = checkValidation(pin);
+
   pins.push(pin);
+  message.pin = pin
+
   sendMessageToOtherClients(message);
+}
+
+const checkValidation = (pin: Pin): Pin => {
+  const clientIds = Array.from(clients.keys());
+
+  const allValidated = clientIds.every(clientId => pin.validatedBy.includes(clientId));
+
+  if (allValidated) {
+    pin.shouldBeValidated = false;
+    sendMessageToClients(clientIds, {
+      type: "updatePin",
+      pin: pin,
+      senderId: serverId,
+      clientId: serverId,
+    });
+  }
+
+  return pin;
 }
 
 const deletePin = (message: Message)=> {
@@ -75,6 +100,19 @@ const updatePin = (message: Message)=> {
     pins[index] = updatedPin;
     sendMessageToOtherClients(message);
   }
+
+  checkValidation(updatedPin);
+}
+
+const sendMessageToClients = (clientsId: string[], message: Message) => {
+  clients.forEach(function each(client, clientId) {
+    if (clientsId.includes(clientId)) {
+      const isClientReady = client.readyState === WebSocket.OPEN;
+      if (isClientReady) {
+        client.send(JSON.stringify(message));
+      }
+    }
+  });
 }
 
 const sendMessageToOtherClients = (message: Message) => {

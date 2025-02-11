@@ -5,6 +5,6 @@ export interface Pin {
   size: number,
   color?: string | null,
   name?: string | null
-  shouldBeValidated?: boolean
+  status: "pending" | "validated"
   validatedBy: string[]
 }

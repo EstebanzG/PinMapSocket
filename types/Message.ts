@@ -1,9 +1,22 @@
 import {Pin} from "./Pin";
 
-export interface Message {
+interface Message {
   senderId: string;
+  type: "initialization" | "addPin" | "deletePin" | "updatePin" | "usersChange";
+}
+
+export interface ActionMessage extends Message {
+  pin: Pin;
+}
+
+export interface InitializationMessage extends Message {
+  pins: Pin[];
+  nbOfUsers: number;
+  minimalNbOfValidations: number;
   clientId: string;
-  type: "initialization" | "addPin" | "deletePin" | "updatePin";
-  pin?: Pin;
-  pins?: Pin[];
+}
+
+export interface UsersChangeMessage extends Message {
+  nbOfUsers: number;
+  minimalNbOfValidations: number;
 }

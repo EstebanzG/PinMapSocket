@@ -1,6 +1,6 @@
 import WebSocket, {WebSocketServer} from 'ws';
 import {Pin} from "./types/Pin";
-import {ActionMessage, InitializationMessage, UsersChangeMessage,} from "./types/Message";
+import {ActionMessage, ChatMessage, InitializationMessage, UsersChangeMessage,} from "./types/Message";
 import {v4 as uuidv4} from "uuid";
 
 const wss = new WebSocketServer({port: 8080});
@@ -14,16 +14,19 @@ wss.on('connection', function connection(ws) {
   ws.on('error', console.error);
 
   ws.on('message', function message(data) {
-    const message: ActionMessage = JSON.parse(data.toString());
+    const message: ActionMessage | ChatMessage = JSON.parse(data.toString());
     switch (message.type) {
       case "addPin":
-        addPin(message, clientId);
+        addPin(message as ActionMessage, clientId);
         break;
       case "deletePin":
-        deletePin(message, clientId);
+        deletePin(message as ActionMessage, clientId);
         break;
       case "updatePin":
-        updatePin(message, clientId);
+        updatePin(message as ActionMessage, clientId);
+        break;
+      case "chat":
+        sendMessageToOtherClients(message as ChatMessage, clientId);
         break;
     }
   });
@@ -56,14 +59,12 @@ const initializedClient = (ws: WebSocket): string => {
 
   console.log(`new client connected with id: ${clientId}`);
   ws.send(JSON.stringify(message));
-  sendMessageToOtherClients(
-    clientId,
-    {
+  sendMessageToOtherClients({
     senderId: serverId,
     type: "usersChange",
     nbOfUsers: clients.size,
     minimalNbOfValidations: getMinimalNumberOfValidation(),
-  })
+  }, clientId)
 
   return clientId
 }
@@ -78,7 +79,7 @@ const addPin = (message: ActionMessage, clientId: string) => {
   pins.push(pin);
   message.pin = pin
 
-  sendMessageToOtherClients(clientId, message);
+  sendMessageToOtherClients(message, clientId);
 }
 
 const deletePin = (message: ActionMessage, clientId: string) => {
@@ -89,7 +90,7 @@ const deletePin = (message: ActionMessage, clientId: string) => {
   const index = pins.findIndex(pin => deletedPin.id === pin.id);
   if (index !== -1) {
     pins.splice(index, 1);
-    sendMessageToOtherClients(clientId, message);
+    sendMessageToOtherClients(message, clientId);
   }
 }
 
@@ -101,7 +102,7 @@ const updatePin = (message: ActionMessage, clientId: string) => {
   const index = pins.findIndex(pin => updatedPin.id === pin.id);
   if (index !== -1) {
     pins[index] = updatedPin;
-    sendMessageToOtherClients(clientId, message);
+    sendMessageToOtherClients(message, clientId);
   }
 
   checkValidation(updatedPin);
@@ -118,7 +119,7 @@ const sendMessageToClients = (clientsId: string[], message: ActionMessage) => {
   });
 }
 
-const sendMessageToOtherClients = (senderId: string, message: ActionMessage | UsersChangeMessage) => {
+const sendMessageToOtherClients = (message: ActionMessage | UsersChangeMessage | ChatMessage, senderId: string) => {
   clients.forEach(function each(client, clientId) {
     const isClientReady = client.readyState === WebSocket.OPEN;
     const isNotSender = senderId !== clientId;

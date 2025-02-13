@@ -1,5 +1,3 @@
-import {ChatMessage} from "./ChatMessage";
-
 export interface Pin {
   id: string,
   positionX: number,
@@ -7,7 +5,12 @@ export interface Pin {
   size: number,
   color?: string | null,
   name?: string | null,
-  messages: ChatMessage[],
+  messages: Message[],
   status: "pending" | "validated",
   validatedBy: string[],
+}
+
+interface Message {
+  sender: string;
+  content: string;
 }

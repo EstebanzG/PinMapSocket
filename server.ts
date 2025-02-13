@@ -1,7 +1,7 @@
 import WebSocket, {WebSocketServer} from 'ws';
 import {Pin} from "./types/Pin";
-import {ActionMessage, ChatMessage, InitializationMessage, UsersChangeMessage,} from "./types/Message";
-import {v4 as uuidv4} from "uuid";
+import {ActionMessage, InitializationMessage, UsersChangeMessage,} from "./types/Message";
+import {names, uniqueNamesGenerator} from "unique-names-generator";
 
 const wss = new WebSocketServer({port: 8080});
 const serverId = 'server';
@@ -14,7 +14,7 @@ wss.on('connection', function connection(ws) {
   ws.on('error', console.error);
 
   ws.on('message', function message(data) {
-    const message: ActionMessage | ChatMessage = JSON.parse(data.toString());
+    const message: ActionMessage = JSON.parse(data.toString());
     switch (message.type) {
       case "addPin":
         addPin(message as ActionMessage, clientId);
@@ -25,9 +25,6 @@ wss.on('connection', function connection(ws) {
       case "updatePin":
         updatePin(message as ActionMessage, clientId);
         break;
-      case "chat":
-        sendMessageToOtherClients(message as ChatMessage, clientId);
-        break;
     }
   });
 
@@ -36,6 +33,12 @@ wss.on('connection', function connection(ws) {
       if (client === ws) {
         clients.delete(clientId);
         console.log(`client disconnected with id: ${clientId}`);
+        sendMessageToOtherClients({
+          senderId: serverId,
+          type: "usersChange",
+          nbOfUsers: clients.size,
+          minimalNbOfValidations: getMinimalNumberOfValidation(),
+        }, clientId)
       }
     });
 
@@ -46,7 +49,10 @@ wss.on('connection', function connection(ws) {
 });
 
 const initializedClient = (ws: WebSocket): string => {
-  const clientId = uuidv4();
+  const clientId = uniqueNamesGenerator({
+      dictionaries: [names],
+    }
+  );
   clients.set(clientId, ws);
   const message: InitializationMessage = {
     senderId: serverId,
@@ -119,7 +125,7 @@ const sendMessageToClients = (clientsId: string[], message: ActionMessage) => {
   });
 }
 
-const sendMessageToOtherClients = (message: ActionMessage | UsersChangeMessage | ChatMessage, senderId: string) => {
+const sendMessageToOtherClients = (message: ActionMessage | UsersChangeMessage, senderId: string) => {
   clients.forEach(function each(client, clientId) {
     const isClientReady = client.readyState === WebSocket.OPEN;
     const isNotSender = senderId !== clientId;
